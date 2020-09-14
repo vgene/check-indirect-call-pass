@@ -10,10 +10,13 @@
 
 #include <set>
 
+#define DEBUG_TYPE "check-icall"
+
 using namespace llvm;
 STATISTIC(NumICall, "Number of indirect call in the program");
 STATISTIC(NumCoverdByDevirt, "Number of indirect call covered by CPF devirt");
 STATISTIC(NumCoveredByPgo, "Number of indirect call covered by pgo-icall-prom");
+
 
 namespace {
 
