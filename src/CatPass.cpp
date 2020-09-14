@@ -3,19 +3,28 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ProfileData/InstrProf.h"
 
 #include <set>
 
 #define DEBUG_TYPE "check-icall"
+#define MaxNumPromotions 100
 
 using namespace llvm;
 STATISTIC(NumICall, "Number of indirect call in the program");
 STATISTIC(NumCoveredByDevirt, "Number of indirect call covered by CPF devirt");
 STATISTIC(NumCoveredByPgo, "Number of indirect call covered by pgo-icall-prom");
+STATISTIC(NumUnexercised, "Number of indirect call not covered but not exercised by profile input");
+
+static unsigned long numICall = 0;
+static unsigned long numCoveredByDevirt = 0;
+static unsigned long numCoveredByPgo = 0;
+static unsigned long numUnexercised = 0;
 
 
 namespace {
@@ -44,6 +53,9 @@ namespace {
     // The LLVM IR of the input functions is ready and it can be analyzed and/or transformed
     bool runOnFunction (Function &F) override {
       // errs() << "Hello LLVM World at \"runOnFunction\"\n" ;
+      std::unique_ptr<InstrProfValueData[]> ValueDataArray = llvm::make_unique<InstrProfValueData[]>(MaxNumPromotions);
+      uint32_t NumVals;
+      uint64_t TotalCount;
 
       for (BasicBlock &bb: F){
         for (Instruction &I: bb){
@@ -52,17 +64,30 @@ namespace {
             Function *fn = cs->getCalledFunction();
             if (!fn) {// indirect call
               NumICall++;
+              numICall++;
               if (!bb.hasName()) // doesn't have a name
                 continue;
               // if the basic block starts with "default_indirect", then it's covered by CPF's devirt
               if (bb.getName().startswith("default_indirect")){
                 NumCoveredByDevirt++;
+                numCoveredByDevirt++;
                 continue;
               }
 
               // if the basic block starts with "if.false" then it's covered by LLVM pgo-icall-prom
               if (bb.getName().startswith("if.false")){
                 NumCoveredByPgo++;
+                numCoveredByPgo++;
+                continue;
+              }
+
+              // get value pred
+              bool Res =
+                getValueProfDataFromInst(I, IPVK_IndirectCallTarget, MaxNumPromotions,
+                    ValueDataArray.get(), NumVals, TotalCount);
+              if (!Res) {
+                NumUnexercised++;
+                numUnexercised++;
                 continue;
               }
 
@@ -75,6 +100,15 @@ namespace {
       }
 
       return true;
+    }
+
+    bool doFinalization(Module &M) override {
+      errs() << "Num Indirect Call:" << numICall << "\n";
+      errs() << "Num Indirect Call covered by devirt:" << numCoveredByDevirt << "\n";
+      errs() << "Num Indirect Call covered by PGO:" << numCoveredByPgo << "\n";
+      errs() << "Num Indirect Call not covered but also not exercised:" << numUnexercised<< "\n";
+
+      return false;
     }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
