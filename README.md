@@ -1,24 +1,7 @@
 
-# Remove Bounds Check
-Use simplifycfg and dce together with it to actually remove bounds check!
-`opt -load build/CAT.so -remove-bc -simplifycfg -dce INPUT.ll -S -o OUTPUT.ll`
-
-# LLVM_middleend_template
-
-This is the template to use for assignments of the Code Analysis and Transformation class at Northwestern University.
-
-Website of the class = https://users.cs.northwestern.edu/~simonec/CAT.html
-
-To build: 
-  Compile and install your code by invoking `./run_me.sh`
-  The script run_me.sh compiles and installs an LLVM-based compiler that includes your CAT in the directory ~/CAT
-
-To run:
-  1) Add your compiler cat-c in your PATH (i.e., `export PATH=~/CAT/bin:$PATH`)
-
-  2) Invoke your compiler to compile a C/C++ program. For example:
-  ```sh
-    $ cat-c program_to_analyse.c -o mybinary
-    $ cat-c -O3 program_to_analyse.c -o mybinary
-    $ cat-c -O0 program_to_analyse.bc -o mybinary
-  ```
+# Check Indirect Call Pass
+Check all existing indirect calls and report them as four categories
+1. Calls covered by static devirt in CAF(i.e., with compare and call chain before the indirect call block)
+2. Calls covered by pgo (same as 1 but with modified version pgo-icall-prom pass)
+3. Calls not devirtualized but not exercised by profiling
+4. Other calls (might due to external function calls that are not declared)
